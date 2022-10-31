@@ -3,7 +3,7 @@ import sqlite3
 from flask import Flask, jsonify, json, render_template, request, url_for, redirect, flash
 from werkzeug.exceptions import abort
 from datetime import datetime
-import logging
+import logging, sys, os
 
 # Count all database connections
 connection_count = 0
@@ -43,17 +43,17 @@ def index():
 def post(post_id):
     post = get_post(post_id)
     if post is None:
-      log_message(
+      app.logger.error(
             'Article with id "{id}" does not exist!'.format(id=post_id))
       return render_template('404.html'), 404
     else:
-      log_message('Article "{title}" retrieved!'.format(title=post['title']))
+      app.logger.error('Article "{title}" retrieved!'.format(title=post['title']))
       return render_template('post.html', post=post)
 
 # Define the About Us page
 @app.route('/about')
 def about():
-    log_message('About page rendered!')
+    app.logger.error('About page rendered!')
     return render_template('about.html')
 
 # Define the post creation functionality 
@@ -71,7 +71,7 @@ def create():
                          (title, content))
             connection.commit()
             connection.close()
-            log_message('Article "{title}" created!'.format(title=title))
+            app.logger.error('Article "{title}" created!'.format(title=title))
             return redirect(url_for('index'))
 
     return render_template('create.html')
@@ -101,14 +101,33 @@ def metrics():
 
 
 #Function that logs messages
-def log_message(msg):
-    app.logger.info('{time} | {message}'.format(
-        time=datetime.now().strftime("%m/%d/%Y, %H:%M:%S"), message=msg))
+#def log_message(msg):
+#    app.logger.info('{time} | {message}'.format(
+#        time=datetime.now().strftime("%m/%d/%Y, %H:%M:%S"), message=msg))
 
 
 # start the application on port 3111
 if __name__ == "__main__":
+
    ## stream logs to a file
-   logging.basicConfig(level=logging.DEBUG)
-   
+   loglevel = os.getenv("LOGLEVEL", "DEBUG").upper()
+   loglevel = (
+        getattr(logging, loglevel)
+        if loglevel in ["CRITICAL", "DEBUG", "ERROR", "INFO", "WARNING", ]
+        else logging.DEBUG
+    )
+
+    # Set logger to handle STDOUT and STDERR
+   stdout_handler = logging.StreamHandler(sys.stdout)
+   stderr_handler = logging.StreamHandler(sys.stderr)
+   handlers = [stderr_handler, stdout_handler]
+
+    # Create the log file and format each log
+   logging.basicConfig(
+        format='%(levelname)s:%(name)s:%(asctime)s, %(message)s',
+        level=loglevel,
+        datefmt='%m-%d-%Y, %H:%M:%S',
+        handlers=handlers
+   )
+
    app.run(host='0.0.0.0', port='3111')
